@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-P8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Editor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Photo Editor</h1>
+    </header>
+    <main>
+        <div class="upload-section">
+            <h2>Upload Your Image</h2>
+            <form method="POST" action="{{ url_for('upload_file') }}" enctype="multipart/form-data">
+                <input type="file" id="imageUpload" name="imageUpload" accept="image/*" required>
+                <input type="submit" value="Upload Image">
+            </form>
+            {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                <ul class=flashes>
+                {% for message in messages %}
+                  <li>{{ message }}</li>
+                {% endfor %}
+                </ul>
+              {% endif %}
+            {% endwith %}
+        </div>
+        <div class="preview-section">
+            <h2>Preview</h2>
+            <img id="imagePreview" src="#" alt="Image Preview" style="display:none; max-width: 100%; height: auto;">
+        </div>
+        <div class="editor-toolbar">
+            <h2>Edit Tools</h2>
+            <!-- Placeholder for editing tools -->
+            <button>Enhance</button>
+            <button>Remove Background</button>
+            <button>Add Shadow</button>
+        </div>
+    </main>
+    <footer>
+        <p>&copy; 2023 Photo Editor</p>
+    </footer>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

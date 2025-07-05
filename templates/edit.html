@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Image - {{ filename }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .image-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+            margin-top: 20px;
+        }
+        .image-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+        .image-box img {
+            max-width: 400px;
+            max-height: 400px;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Edit Image: {{ filename }}</h1>
+        <p><a href="{{ url_for('index') }}">Upload Another Image</a></p>
+    </header>
+    <main>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <ul class=flashes>
+            {% for message in messages %}
+              <li>{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
+        <div class="editor-toolbar">
+            <h2>Processing Tools</h2>
+            <form action="{{ url_for('enhance_image_route', filename=filename) }}" method="POST" style="display: inline;">
+                <button type="submit">Auto-Enhance (Contrast)</button>
+            </form>
+            <form action="{{ url_for('remove_bg_route', filename=filename) }}" method="POST" style="display: inline;">
+                <button type="submit">Remove Background (Placeholder)</button>
+            </form>
+            <!-- Add more processing buttons here -->
+        </div>
+
+        <div class="image-container">
+            <div class="image-box">
+                <h3>Original Image</h3>
+                <img src="{{ uploaded_image_url }}" alt="Original Image: {{ filename }}">
+            </div>
+            {% if processed_image_url %}
+            <div class="image-box">
+                <h3>Processed Image</h3>
+                <img src="{{ processed_image_url }}" alt="Processed Image: {{ processed_filename }}">
+                <p><a href="{{ processed_image_url }}" download="{{ processed_filename }}">Download Processed Image</a></p>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+    <footer>
+        <p>&copy; 2023 Photo Editor</p>
+    </footer>
+</body>
+</html>
