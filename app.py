@@ -50,35 +50,92 @@ def display_processed_file(filename):
 
 @app.route('/edit/<filename>')
 def edit_image(filename):
-    # This route will display the uploaded image and options to process it
-    uploaded_image_url = url_for('display_uploaded_file', filename=filename)
-    return render_template('edit.html', filename=filename, uploaded_image_url=uploaded_image_url)
+    # This route displays an image (either original or previously processed) and options to process it further.
+    # `filename` here can be an original filename or a processed filename.
+    # We need to determine if it's from UPLOAD_FOLDER or PROCESSED_FOLDER.
 
-@app.route('/process/enhance/<filename>', methods=['POST'])
-def enhance_image_route(filename):
+    original_image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    processed_image_path = os.path.join(app.config['PROCESSED_FOLDER'], filename)
+
+    is_processed_image = os.path.exists(processed_image_path)
+
+    image_url = ""
+    source_folder_for_display = ""
+
+    if is_processed_image:
+        image_url = url_for('display_processed_file', filename=filename)
+        source_folder_for_display = app.config['PROCESSED_FOLDER']
+    elif os.path.exists(original_image_path):
+        image_url = url_for('display_uploaded_file', filename=filename)
+        source_folder_for_display = app.config['UPLOAD_FOLDER']
+    else:
+        flash(f"Image {filename} not found.")
+        return redirect(url_for('index'))
+
+    # `current_filename_for_processing` is the image that will be processed next.
+    # `display_image_url` is the URL of the image shown on the page.
+    # `original_uploaded_filename` tracks the very first image for reference if needed.
+
+    # If `filename` is already processed, it might look like "enhanced_original.jpg".
+    # We need a way to trace back to the actual original upload if necessary,
+    # but for chaining, `filename` IS the current source.
+
+    return render_template('edit.html',
+                           current_filename_for_processing=filename,
+                           display_image_url=image_url,
+                           is_processed_image=is_processed_image)
+
+
+@app.route('/process/enhance/<source_filename>', methods=['POST'])
+def enhance_image_route(source_filename):
     try:
-        source_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if not os.path.exists(source_path):
-            flash('Original image not found.')
+        # Determine if the source_filename is from UPLOAD_FOLDER or PROCESSED_FOLDER
+        original_path = os.path.join(app.config['UPLOAD_FOLDER'], source_filename)
+        processed_path_as_source = os.path.join(app.config['PROCESSED_FOLDER'], source_filename)
+
+        actual_source_path = ""
+        if os.path.exists(processed_path_as_source):
+            actual_source_path = processed_path_as_source
+        elif os.path.exists(original_path):
+            actual_source_path = original_path
+        else:
+            flash(f'Source image {source_filename} not found.')
             return redirect(url_for('index'))
 
-        img = Image.open(source_path)
-
-        # Example: Auto-contrast
+        img = Image.open(actual_source_path)
         img_enhanced = ImageOps.autocontrast(img)
 
-        processed_filename = "enhanced_" + filename
-        destination_path = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
+        # Create a new filename to avoid overwriting and show progression
+        if source_filename.startswith("enhanced_") or source_filename.startswith("bg_removed_"):
+            new_processed_filename = "enhanced_" + source_filename.split("_", 1)[1] if "_" in source_filename else "enhanced_processed_" + source_filename
+        else: # Original file
+            new_processed_filename = "enhanced_" + source_filename
+
+        # Ensure unique filenames if operations are repeated (e.g. enhance_enhance_...)
+        # This simple prefixing might get long. A more robust system might use IDs or checksums.
+        count = 0
+        temp_filename = new_processed_filename
+        while os.path.exists(os.path.join(app.config['PROCESSED_FOLDER'], temp_filename)):
+            count += 1
+            base, ext = os.path.splitext(new_processed_filename)
+            # Remove previous count if exists
+            if base.endswith(f"_{count-1}"):
+                 base = base[:-(len(str(count-1))+1)]
+            temp_filename = f"{base}_{count}{ext}"
+        new_processed_filename = temp_filename
+
+
+        destination_path = os.path.join(app.config['PROCESSED_FOLDER'], new_processed_filename)
         img_enhanced.save(destination_path)
 
         flash('Image enhanced successfully!')
-        # Show the edit page again, but now with the processed image
-        return redirect(url_for('edit_image_result', original_filename=filename, processed_filename=processed_filename))
+        # After processing, redirect to the edit page with the new processed filename as the current image
+        return redirect(url_for('edit_image', filename=new_processed_filename))
     except Exception as e:
         flash(f'Error processing image: {e}')
-        return redirect(url_for('edit_image', filename=filename))
+        return redirect(url_for('edit_image', filename=source_filename))
 
-# Placeholder for AI Background Removal
+# Placeholder for AI Background Removal (modified for chaining)
 def remove_background_ai(image_path, output_path):
     """
     Placeholder function for AI background removal.
@@ -98,40 +155,55 @@ def remove_background_ai(image_path, output_path):
         print(f"Error in remove_background_ai: {e}")
         return False
 
-@app.route('/process/remove_bg/<filename>', methods=['POST'])
-def remove_bg_route(filename):
+@app.route('/process/remove_bg/<source_filename>', methods=['POST'])
+def remove_bg_route(source_filename):
     try:
-        source_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if not os.path.exists(source_path):
-            flash('Original image not found.')
+        original_path = os.path.join(app.config['UPLOAD_FOLDER'], source_filename)
+        processed_path_as_source = os.path.join(app.config['PROCESSED_FOLDER'], source_filename)
+
+        actual_source_path = ""
+        if os.path.exists(processed_path_as_source):
+            actual_source_path = processed_path_as_source
+        elif os.path.exists(original_path):
+            actual_source_path = original_path
+        else:
+            flash(f'Source image {source_filename} not found.')
             return redirect(url_for('index'))
 
-        processed_filename = "bg_removed_" + filename
-        destination_path = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
+        # Create a new filename
+        if source_filename.startswith("enhanced_") or source_filename.startswith("bg_removed_"):
+             new_processed_filename = "bg_removed_" + source_filename.split("_", 1)[1] if "_" in source_filename else "bg_removed_processed_" + source_filename
+        else: # Original file
+            new_processed_filename = "bg_removed_" + source_filename
 
-        success = remove_background_ai(source_path, destination_path) # Call placeholder
+        count = 0
+        temp_filename = new_processed_filename
+        while os.path.exists(os.path.join(app.config['PROCESSED_FOLDER'], temp_filename)):
+            count += 1
+            base, ext = os.path.splitext(new_processed_filename)
+            if base.endswith(f"_{count-1}"):
+                 base = base[:-(len(str(count-1))+1)]
+            temp_filename = f"{base}_{count}{ext}"
+        new_processed_filename = temp_filename
+
+        destination_path = os.path.join(app.config['PROCESSED_FOLDER'], new_processed_filename)
+
+        success = remove_background_ai(actual_source_path, destination_path)
 
         if success:
             flash('Background removal (placeholder) complete!')
-            return redirect(url_for('edit_image_result', original_filename=filename, processed_filename=processed_filename))
+            return redirect(url_for('edit_image', filename=new_processed_filename))
         else:
             flash('Error during background removal (placeholder).')
-            return redirect(url_for('edit_image', filename=filename))
+            return redirect(url_for('edit_image', filename=source_filename))
 
     except Exception as e:
         flash(f'Error in background removal route: {e}')
-        return redirect(url_for('edit_image', filename=filename))
+        return redirect(url_for('edit_image', filename=source_filename))
 
-@app.route('/edit_result/<original_filename>/<processed_filename>')
-def edit_image_result(original_filename, processed_filename):
-    original_image_url = url_for('display_uploaded_file', filename=original_filename)
-    processed_image_url = url_for('display_processed_file', filename=processed_filename)
-    return render_template('edit.html',
-                           filename=original_filename, # Keep original filename for context
-                           uploaded_image_url=original_image_url,
-                           processed_image_url=processed_image_url,
-                           processed_filename=processed_filename)
-
+# Removed edit_image_result as its functionality is merged into edit_image
+# The edit_image route now handles displaying either original or processed images
+# and serves as the single point for further edits.
 
 if __name__ == '__main__':
     for folder in [UPLOAD_FOLDER, PROCESSED_FOLDER]:
